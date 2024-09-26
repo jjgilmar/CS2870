@@ -1,0 +1,202 @@
+---
+title: "DS 2870: Module 2 Homework - Used Cars"
+author: "Joey Gilmartin"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE, message = F, warning = F}
+knitr::opts_chunk$set(echo = TRUE,
+                      #warning = F,
+                      #message = F,
+                      fig.align = "center")
+
+# Load the needed package(s) here
+pacman::p_load(tidyverse)
+```
+
+## Question 1: Box Plot for Olympian Ages
+
+The data set **olympics.csv** (found at https://raw.githubusercontent.com/Shammalamala/DS-2870-Data-Sets/main/olympics.csv) has data on about 6000 Olympic athletes that completed in 2024 Olympic games in one of 10 sports:
+
+Athletics, Swimming, Rowing, Judo, Shooting, Sailing, Volleyball, Equestrian, Fencing, Boxing, Cycling Road, Gymnastics
+
+(Athletics is a catchall for Track and Field style of events)
+
+The two relevant columns are:
+
+1) *sport*: Which of the 10 sports the athlete participated in
+
+2) *age*: The age the athlete is at the start of the 2024 Olympic games
+
+Using the data set, create the side-by-side box plots seen in Brightspace. The hex codes for the colors are #0081c8 and #FCB131.
+
+To reorder the sports to match what is in Brightspace, use `fct_reorder()` (to see how it works, the help menu is your friend!)
+
+
+```{r Q1}
+olympics <- read_csv('https://raw.githubusercontent.com/Shammalamala/DS-2870-Data-Sets/main/olympics.csv')
+#make plot
+gg_olympics <- ggplot(
+  data = olympics,
+  mapping = aes(
+    x = age,
+    y = fct_reorder(sport, olympics$age),
+  )
+) + #add boxplots and colors
+  geom_boxplot(
+    fill = "#0081c8",
+    color = "#FCB131"
+  ) + 
+  theme_bw() + #base theme
+  theme(
+    plot.title = element_text(hjust = .5, face = 'bold'), #theme updates, bold title and center title and subtitle
+    plot.subtitle = element_text(hjust = .5)
+    
+  ) +
+  labs( 
+    x = NULL, #update axis, title, and subtitles
+    y = "Sport",
+    title = "Age of Olympians at the start of the Olympics by Sport",
+    subtitle = "10 of the most common sports only"
+  )
+
+gg_olympics
+
+```
+
+## Question 2: Used Cars
+
+The **used cars.csv** file has info about 400 cars listed on Craigslist in 2023 (github link: https://raw.githubusercontent.com/Shammalamala/DS-2870-Data-Sets/main/used%20cars.csv)
+
+The columns are: 
+
+1) *id*: The unique ID for the car in the data set
+2) *price*: The asking price of the used car on Craigslist (in dollars)
+3) *year*: The year the car was manufactured
+4) *manufacturer*: The maker of the car (Chevrolet, Ford, Honda, Jeep)
+5) *odometer*: How many miles the car has been driven
+
+### Part 2a: Basic graph
+
+Create the first graph for question 2 seen in Brightspace. Save it as **gg_q2a** and make sure to display it in the knitted document
+
+```{r 2a}
+used_cars <- read_csv('https://raw.githubusercontent.com/Shammalamala/DS-2870-Data-Sets/main/used%20cars.csv')
+#create gg plot
+gg_q2a <- ggplot(
+  data = used_cars,
+  mapping = aes(
+    x = odometer,
+    y = price,
+    color = manufacturer#color based on manufacturer
+  )
+) +
+  #add geom point and set color
+  geom_point() +
+  geom_smooth(
+    data = used_cars,
+    method = "lm", #linear
+    formula = y~x,
+    se = F,
+    color = 'black', #black line and overrides manufacturer
+    show.legend = F #gets rid of line on the legend
+  )
+  
+gg_q2a
+```
+
+### Part 2b: Adding context
+
+Using **gg_q2a**, add the title, subtitle, and caption and change/remove the labels for x, y, and color as seen in Brightspace. Change the legend to match Brightspace and move the legend to the top right corner of the plot.
+
+Save it as **gg_q2b** display it in the knitted document.
+
+```{r q2b}
+
+gg_q2b <- gg_q2a +
+  labs(
+    x = "Mileage", #x axis title
+    y = NULL, #get rid of y axis title
+    title = 'Used Cars for Sale', #add title
+    subtitle = 'Listed on Craigslist in 2023' #add subtitle
+  ) +
+  theme_classic() + #theme used for most features
+  theme(
+    plot.title = element_text(face = 'bold'), #bold plot and x axis title 
+    axis.title.x = element_text(face = 'bold'),
+    legend.title = element_blank(), #get rid of axis title
+    legend.position = "inside", #move legend to inside the panel
+    legend.position.inside = c(.9, .9) #adjust location
+  )
+
+
+gg_q2b
+```
+
+### Part 2c: Improving appearance
+
+Make the final changes to the graph in **gg_q2b** that can be seen in Brightspace. Make sure to pay close attention to the color guide! 
+
+The colors used are
+
+Ford: #47a8e5
+Chevrolet: #D1AD57
+Honda: #CC0000
+Jeep: #485F2B
+
+```{r q2c}
+
+gg_q2c <- gg_q2b + 
+  scale_color_manual( values = c('#D1AD57', '#47a8e5', '#CC0000', '#485F2B'), #change legend colors
+                      labels = c("Chevrolet", "Ford", "Honda", "Jeep")) + #capitalize legend names
+  scale_y_continuous(labels = scales::label_dollar()) + #add dollar signs to y axis labels
+  scale_x_continuous(labels = scales::label_comma()) #add commas to x axis labels
+
+
+gg_q2c
+```
+
+
+## Question 3: Small Multiples
+
+Create a set of 4 scatter plots with a fitted line in the same overall graph - 1 for each manufacturer. 
+
+Each individual plot should have *odometer* on the x-axis, *price* on the y-axis, and *age* of the car represented by color.
+
+```{r Q3}
+used_cars$age <- (2023 - used_cars$year) #create age column
+#create graph
+gg_cars_grid <-  
+  ggplot(
+    data = used_cars, #data
+    mapping = aes(
+      x = odometer,
+      y = price,
+      color = age
+    )
+  ) + 
+  labs(
+    x = "Mileage", #x axis title
+    y = NULL, #get rid of y axis title
+    title = 'Used Cars for Sale', #add title
+    subtitle = 'Listed on Craigslist in 2023' #add subtitle
+  ) +
+  theme_bw()+
+  theme(
+    plot.title = element_text(face = 'bold'), #bold title and x axis
+    axis.title.x = element_text(face = 'bold')
+  ) +
+  geom_point() + #add scatter plot
+  geom_smooth(
+    method = "lm", #linear
+    formula = y~x,
+    se = F,
+    color = 'black', #black line and overrides manufacturer
+    show.legend = F #gets rid of line on the legend
+  ) +
+  facet_wrap( facets = vars( manufacturer ), nrow = 2,  scales = 'fixed' ) #facet based on manufacturer
+
+gg_cars_grid
+```
+

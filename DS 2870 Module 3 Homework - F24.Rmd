@@ -1,0 +1,325 @@
+---
+title: 'DS 2870: Module 3 Homework'
+author: "Joey Gilmartin"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T,
+                      warning = F,
+                      message = F,
+                      fig.align = "center")
+
+# Loading the tidyverse package
+pacman::p_load(tidyverse)
+
+# Reading in the first data set of S&P 500 companies
+sp500 <- 
+  read.csv("sp500 companies.csv", stringsAsFactors = T) |> 
+  mutate(
+    sector = str_replace(sector, " ", "\n"),
+    sector = if_else(str_detect(sector, "Consumer"), "Consumer\nGoods", sector)
+  )
+
+```
+
+## Data Description
+
+The **sp500** data set has the 502 companies in the Standards & Poors (S&P 500) that are the largest 500 (502) publicly traded companies in the US. The data set has 11 variables, with the important ones being:
+
+1) **symbol**: The 3 to 4 letter symbol used to ID the company on the stock market
+
+2) **company**: The name of the company
+
+3) **sector**: The sector of the economy of the company (Medical/Financial/Utility/Construction/etc...)
+
+4) **state**: Which state the headquarters is located
+
+5) **market_cap**: The total price of all the "at large" shares (as of May 23rd 2024) of the company. Used as a measure of the value of the entire company.
+
+6) **price**: The price of an individual share (as of May 23rd 2024)
+
+7) **region**: The region in the US (or not in US) of the HQ (Northeast/Midwest/South/West/Not US)
+
+
+\newpage
+
+
+## Question 1: Bar Graphs
+
+### Part 1A) Bar Graph of sector
+
+**Create a bar graph of each sector. See what it should look like on Brightspace!**
+
+```{r q1a bar chart}
+#create gg plot with y = sector as a factor
+ggplot(
+  data = sp500,
+  mapping = aes(
+    y = fct_rev(fct_infreq(sector)) #order the sectors as seen on brightspace
+  )
+) + 
+  geom_bar(
+    fill = 'steelblue' #change color
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = .5) #center title
+  ) +
+  labs(
+    title = "S&P 500 Company Sectors", #title
+    y = NULL, #no y axis label
+    x = "Number of companies" #label x axis
+  ) + scale_x_continuous(expand = c(0, 0, 0.05, 0)) #get rid of spacing along y axis
+```
+
+\newpage
+
+### Part 1b) Region by Sector
+
+**Create a bar chart of the number of companies in each sector by region. See what it should look like on Brightspace!** 
+
+```{r q1b bar graph}
+sp500$region <- 
+  factor(x = sp500$region,
+         levels = c("Northeast", "South", "Midwest", "West", "Not US")) #change factor order
+#create ggplot with region on x and fill = sector
+ggplot(
+  data = sp500,
+  mapping = aes(
+    x = region,
+    fill = fct_infreq(sector)
+    )
+  ) + #some space between bars
+  geom_bar(
+  position = 'dodge2' 
+  ) +
+  # Add this to remove the vertical grid lines
+  theme(
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(hjust = .5)
+    
+  ) + #add labels
+  labs(
+    title = "S&P 500 Company Sectors",
+    y = "Number of companies",
+    x = "US Region",
+    fill = "Sector"
+  ) + scale_y_continuous(expand = c(0, 0, 0.05, 0)) #get rid of spacing on the x axis
+```
+
+
+
+
+### Part 1c) Sectors by Region
+
+**Create a bar chart of the percentage of regions by sector. See what it should look like on Brightspace! The groups on the x-axis are ordered by market cap (highest -> lowest)** 
+
+```{r q1c bar graph}
+#create gg plot
+ggplot(
+  data = sp500,
+  mapping = aes(
+    x = fct_rev(fct_reorder(sector, market_cap)), #reorder sectors based on market cap
+    fill = region
+    )
+  ) + #show proportion
+  geom_bar(
+    position = 'fill'
+  ) + theme_classic() +
+  # Add this to remove the vertical grid lines
+  theme(
+    panel.grid.major.x = element_blank(),
+    plot.title = element_text(hjust = .5),
+    legend.position = "top"
+    
+  ) + #remove labels to axis and legend, and add title
+  labs(
+    title = "S&P 500 Company Regions by Sectors",
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) + #percent labels on y and get rid of spacing along x
+  scale_y_continuous(
+    labels = scales::label_percent(),
+    expand = c(0, 0, 0.05, 0)
+  )
+
+
+
+```
+
+## Question 2: Graphs for market cap and available shares
+
+### Part 2a) Histogram for market cap
+
+**Create a histogram in Brightspace for market cap seen in Brightspace**
+```{r 2a hist}
+#set up ggplot
+ggplot(
+  data = sp500,
+  mapping = aes(
+    x = market_cap,
+  )
+) + #change color of bar
+  geom_histogram(
+    color = "black",
+    fill = "steelblue"
+  ) + #add labels
+  labs(
+    y = "Companies",
+    x = NULL,
+    title = "Market Cap of S&P 500 Companies"
+  ) +
+  theme_bw()+
+  theme(
+    plot.title = element_text(hjust = .5), #center title
+  ) + #log10 transformation
+  scale_x_log10(
+    labels = scales::label_dollar() #add dollars to label
+  ) + #add a caption
+  labs(
+    caption = "x-axis is on a log 10 scale"
+  ) + scale_y_continuous(expand = c(0, 0, 0.05, 0)) #get rid of spacing along x
+
+```
+
+### Part 2b) Density plot for the number of shares by sector
+
+**Create the density plot seen in Brightspace. The number of shares = market_cap / price seen in Brightspace.**
+
+
+```{r 2b density, fig.height = 8}
+# Use sp500_2b for this example
+sp500_2b <- 
+  sp500 |> 
+  mutate(
+    sector = str_replace(sector, "\n", " ")
+  )
+#add shares column
+sp500_2b$shares <- (sp500_2b$market_cap/sp500_2b$price)
+# Create the graph below
+ggplot(
+  data = sp500_2b,
+  mapping = aes(
+    x = shares,
+  )
+) + #change color of density plots
+  geom_density(
+    fill = "steelblue",
+    color = "black"
+  ) + #add/remove labels
+  labs(
+    y = NULL,
+    x = NULL,
+    title = "Number of Shares Available for S&P 500 Companies",
+    caption = "x-axis is on a log 10 scale"
+  ) +
+  theme_bw(
+  ) + #change theme
+  theme(
+    plot.title = element_text(hjust = .5), #center title
+  ) + #log10 transformation
+  scale_x_log10(
+    labels = scales::label_comma() #change labels to be comma seperated
+  ) + #remove spacing along x axis
+  scale_y_continuous(
+    expand = c(0, 0, 0.05, 0)
+  ) +
+  facet_wrap( 
+    facets = vars( sector), 
+    ncol = 2, 
+    scales = 'fixed'
+  ) #use facet wrap to make multiple graphs based on sector 
+
+
+
+```
+
+## Question 3: Graph of Market Cap for Tesla, Nvidia, and Amazon
+
+**The code chunk below reads in a data set that has the daily closing price per share of three companies: Amazon, Tesla, and Nvidia from January 1st, 2020 to May 23rd, 2024.**
+
+```{r three stock read in, echo = F, include = F}
+three_stocks <- 
+  read.csv("three stocks.csv") |> 
+  # Removing any missing values
+  filter(!is.na(daily_change)) |> 
+  # Changing the date column to a Date type object
+  mutate(date = as.Date(date))
+```
+
+**The important columns are: company, date, and market_cap**
+
+**Create an appropriate graph to show how the three companies' market cap has changed across time. If you use color to represent the companies (hint, hint), the company color hexcodes are:**
+
+- **Amazon: "#ff9900"**
+
+- **Tesla: "#E31937"**
+
+- **Nvidia: "#76B900"**
+
+**Display market cap in billions (1,000,000,000) of dollars (ie, 100 billion market cap = 100). Add any appropriate titles, labels, themes, etc... to make the graph look nice!**
+
+```{r q3}
+#make new column of market cap in billions
+three_stocks$market_cap_billion <- three_stocks$market_cap / 10^9
+#set up plot
+ggplot(
+    data = three_stocks,
+    mapping = aes(
+      x = date,
+      y = market_cap_billion
+    )
+  ) + #add line graph with color based on company, slightly larger linewidth
+  geom_line(
+    mapping = aes(color = company),
+    linewidth = .75
+  ) + #add labels
+  labs(
+    y = "Market Cap (in billions)",
+    x = "Year",
+    color = NULL,
+    title = "Market Cap for <span style='color:#E31937;'>Tesla</span>, <span style='color:#76B900;'>Nvidia</span>, and <span style='color:#ff9900;'>Amazon</span>", #use HTML to set colors in title
+    subtitle = "Market cap in billions from January 2020 to March 2024",
+  ) + 
+  theme_bw() + #set theme
+  #allow for colors to show in the title
+  theme(
+    plot.title.position = "plot",
+    plot.title = ggtext::element_markdown(face = "bold", hjust = .5), #center title
+    legend.position = "none",
+    plot.subtitle = element_text(hjust = .5), #center subtitle
+  ) + #set line colors manually
+  scale_color_manual(
+    values = c("Tesla" = "#E31937","Amazon" = "#ff9900", "Nvidia" = "#76B900")
+  )
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

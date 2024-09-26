@@ -1,0 +1,273 @@
+---
+title: 'DS 2870: Module 1 Homework'
+author: "Joey Gilmartin"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+
+```{r setup, include = T, echo = T}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = F,
+                      message = F,
+                      fig.align = "center")
+
+```
+
+## Homework Instructions
+
+- All homework assignments should be submitted a pdf file. Easiest way is to knit as an html file and convert to a pdf. There is a video in module 1 about how you can do that!
+
+- If a question asks for a graph, table, or calculation (like an average), make sure that it appears in your knitted document. 
+
+- Your homework should be your own work. While you can use the internet for help, any major deviations to methods seen in this course will be marked incorrect, even if it gives the correct answer. 
+
+- The code should be readable and commented. If I'm unsure what your code did, I can't award partial credit!
+
+- Make sure the knitted document doesn't have any warnings or messages displayed in it!
+
+
+## Question 1: Trees
+
+### 1a) Load Packages
+
+**Load the tidyverse and skimr packages**
+
+```{r 1a}
+# Load the packages below:
+pacman::p_load( tidyverse, skimr, ggplot2)
+```
+
+
+
+### 1b) Tree Diameter
+
+
+**The diameter (in inches) of six trees are 27, 63, 38, 24, 96, and 53. Save the diameters in a vector named tree_dm, then calculate the average diameter of the trees.**
+
+```{r 1b}
+#create tree_dm
+tree_dm <- c(27, 63, 38, 24, 96, 53)
+#get mean
+mean(tree_dm)
+
+```
+
+
+
+### 1c) Tree Species
+
+**The same six trees are Oak, Maple, Maple, Hickory, Maple, Oak. Save the species in a vector named tree_sp. Create a table of the species using** `table()`
+
+
+```{r 1c}
+#create tree_sp
+tree_sp <- c("Oak", "Maple", "Maple", "Hickory", "Maple", "Oak")
+#create table
+table(tree_sp)
+
+```
+
+
+
+
+
+### 1d) Tree Ages
+
+
+**Six trees are 22, 87, 64, missing, 98, and 53 years old. Save the ages in a vector named tree_age, then calculate the median age of the trees.**
+
+```{r 1d}
+#create tree_age
+tree_age <- c(22, 87, 64, NA, 98, 53)
+#get median, ignore NA
+median(tree_age, na.rm = TRUE)
+
+```
+
+
+
+### 1e) Tree ID
+
+**The trees are next to each other and the city has given them an ID of 103, 104, 105, 106, 107, 108. Create an object named tree_ID using a shortcut seen in module 1. Have the ID vector appear in the knitted document.**
+
+
+```{r 1e}
+#create tree_ID
+tree_ID <-  c(103:108)
+
+tree_ID
+```
+
+
+
+
+### 1f) Tree Data Set
+
+**Create a data set named trees using the 4 columns created previously in the order of ID, species, age, diameter. The columns should have the four names listed here.**
+
+**After creating the data frame, have the skim() results appear in the knitted document**
+
+
+```{r 1f}
+#create dataframe and name columns
+trees <- data.frame( 
+  ID = tree_ID, 
+  Species = tree_sp, 
+  age = tree_age, 
+  diameter = tree_dm)
+
+skim(trees)
+```
+
+
+### 1g) 
+
+**Repeat question 1f), but create the trees data set without creating global objects for the individual columns first. Skim the resulting data set and make sure it matches the output from 1f)**
+
+```{r}
+# Keep the line below at the top of this code chunk:
+rm(list = ls())
+
+# Now create a data.frame named trees2 as describe by this question:
+trees2 <- data.frame(
+  ID = c(103:108), 
+  Species = c("Oak", "Maple", "Maple", "Hickory", "Maple", "Oak"), 
+  age = c(22, 87, 64, NA, 98, 53), 
+  diameter = c(27, 63, 38, 24, 96, 53)
+)
+
+skim(trees2)
+
+```
+
+
+
+## Question 2: Bone Data Set
+
+### 2a) Read in the Data
+
+**Read in the bones.csv data set, saved as bones. Skim the data once it has been read in. Which bone is missing the most?**
+
+
+```{r 2a}
+#read in
+bones <- read.csv('bones.csv')
+skim(bones)
+```
+
+Radius bones are missing the most in the dataset.
+
+### 2B) Leg and Arm
+
+**Create 2 new columns in the bones data set:**
+
+1) **arm = humerus + radius**
+
+2) **leg = femur + tibia**
+
+**Display the first 10 rows of the resulting data. What happens if you try to add a missing value to a non-missing value?**
+
+```{r 2b}
+#add rows to original dataframe
+bones <- 
+  data.frame( 
+  bones, 
+  arm = bones$humerus + bones$radius,
+  leg = bones$femur + bones$tibia
+  )
+head(bones)
+
+```
+
+
+<If you try to add an NA value to a non-missing value, it makes the result a missing value.>
+
+
+
+### 2C) Leg and Arm Scatterplot
+
+**Using `plot()` in base R or `ggplot()`, create a scatterplot of arm and leg, then calculate the correlation between them. Then under the code chunk, describe any important features of the scatterplot**
+
+
+```{r 2c_scatterplot}
+# Scatterplot:
+ggplot( bones, aes( x = arm, y = leg)) + #arm on x, leg on y
+  geom_point() +
+  labs (title = "Arm vs Leg", #change axis name
+        x = "Arm length",
+        y = "Leg length")
+
+# calculate the correlation with cor.test(x = , y = )
+#correlation test
+cor.test( x = bones$arm, y = bones$leg)
+
+```
+
+
+<The scatterplot has one major outlier with a much higher leg length. The data is strongly correlated. It is a positve relationship meaning that as leg length increases so does arm length. >
+
+
+
+
+## Question 3: Bones Data Version 2
+
+Question 3 involves the same data as question 2, but the data are stored differently.
+
+### 3a) Read in the Data
+
+**Read in the bones2.csv data set, saved as bones2. Change Skel_ID to be a character variable, then display the first 12 rows in the knitted document**
+
+
+```{r 3a}
+#read in
+bones2 <- read.csv('bones2.csv')
+#change to chat
+bones2$Skel_ID <- as.character( bones2$Skel_ID )
+#show data
+head(bones2, 12)
+
+```
+
+
+
+### 3b) Side-by-side Box plots
+
+**Using `boxplot()` in base R or `ggplot()`, create side-by-side boxplots, with a box plot of *length* for each *bone*. How to the different bones compare?**
+
+```{r 3b_boxplot}
+# Create the boxplot below:
+ggplot( bones2, aes( x = bone, y = length , fill = bone ) ) + #bone type along x, length along y, bone type decides color
+  geom_boxplot( ) +
+  labs( title = "Length of Bones", #change axis names
+        x = "Type of Bone",
+        y = "Length")
+```
+
+Femurs are the longest bone out of the four. The median is the highest. Out of all the bones, femurs have the most variability. Femurs also have a few longer outliers. 
+Tibias are the next largest bone and it also has a few longer outliers. 
+The humerus and radius lengths both have little variance. The tibia lengths are the shortest and have the smallest median length.
+
+### 3c) Proportion of each bone
+
+**Using the bones2 data set, pipes, and the `table()`, `prop.table()`, `round(digits = 2)`, and `data.frame()` functions, create a table that displays the proportion of each type of bone in the data set. You shouldn't need to save any of the outputs from the functions if done properly!**
+
+
+```{r 3c bone type table}
+prop_bones2 <- bones2$bone |> 
+  table() |>  #counts the number of each type of bone
+  prop.table() |> #finds proportions
+  round( digits = 2 ) |> #round
+  data.frame() #makes it a dataframe
+
+prop_bones2
+```
+
+
+### 3d) Bones vs Bones2
+
+**Both data sets have the same information as each other. Describe the main difference in how the data are stored between bones.csv and bones2.csv**
+
+In bones, each line of data is a skeleton with a given Skel_ID and the variables measured are all of the bone lengths. In bones2, each line of data consists of a bone type, Skel_ID, and a length of the bone. Bones has less rows of data and the rows contain more data while bones2 has more rows of data with significantly less information per row. Bones2 also does not have any missing values.
+
+
