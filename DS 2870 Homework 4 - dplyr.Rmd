@@ -1,0 +1,202 @@
+---
+title: "DS 2870 - Homework 4 - dplyr"
+author: "Joey Gilmartin"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.height = 6,
+                      fig.width = 8)
+
+# Load the tidyverse packages
+library(tidyverse)
+
+# Read in the "movies explicit content.csv" file and save it as movies
+movies <- read.csv("movies explicit content full.csv")
+```
+
+## Data Description
+
+The movies data set has 44010 rows about the amount of explicit content (drugs, language, sex,  nudity, and violence) found in 1467 movies released since 1958. Each movie is represented by 30 rows (1 row = movie & tag_name type combo).
+
+The relevant variables in the data set are:
+
+- **imdb_id**: The identifier used by IMDB to uniquely specify the movie
+- **name**, **title_main**, **title_subscript**: The name, main title, and subtitle of the movie. name = "title_main: title_subscript"
+- **year**: The year the movie was released
+- **rating**: The MPAA rating of the movie (PG/PG-13/R)
+- **run_time**: The duration of the movie (in seconds)
+- **studio**: The studio that released the movie
+- **category**: The type of explicit content - language/violence/immodesty/sexual/drugs/other
+- **tag_name**: A subcategory of the type of explicit content. There are 30 different values of tag_name
+  - See the "tags.csv" to see what each **tag_name** represents about the type of explicit content in the movie
+- **occurrences**: The number of times/scenes of the tag_name type of content in the movie
+- **occur_duration**: The length of time of the scenes for the tag_name (in seconds)
+
+
+```{r movies}
+tibble(movies)
+```
+
+\newpage
+
+## Question 1: Removing unwanted rows and columns
+
+**Create a data set named *movies2* that has the following rows:**
+
+- **Only movies released in 1985 and after**
+- **Not in the "other" category**
+- **Doesn't have one of the following tags:** 
+  - **"childish_language", "blasphemy", "nudity_implied", "immodesty", "drugs_implied", "drugs_legal", "non_graphic", "violence_implied", "kissing_normal", "kissing_passion", "sex_implied", "sexually_suggestive"**
+  
+**Additionally, movies2 should only have the imdb_ib, name, year, rating, run_time, studio, category, tag_name, occurrences, and occur_duration columns. Display the movies2 dataset using the `tibble()` function.**   
+
+```{r Question 1}
+movies2 <- 
+  movies |> 
+  filter( year >= 1985, #only take movies made in 1985 or after
+          category != 'other', #do not take movies in the other category
+          !tag_name %in% c( "childish_language", "blasphemy", "nudity_implied", "immodesty", "drugs_implied", "drugs_legal", "non_graphic", "violence_implied", "kissing_normal", "kissing_passion", "sex_implied", "sexually_suggestive") #do not take these tag names
+  ) |> 
+  #only use the following columns
+  select(imdb_id, name, year, rating, run_time, studio, category, tag_name, occurrences, occur_duration)
+
+#show data
+tibble(movies2)
+```
+
+
+\newpage
+
+## Question 2: Changing some of the columns
+
+**If you're unable to complete question 1, you can use the "movies q2.csv" data set in Brightspace.**
+
+**Change the run_time and category columns in the movies2 data set as following:**
+
+- **run_time**: Change the values from seconds to minutes. Round to the closest minute
+- **category**: Reduce the number of groups from 5 to 4 by combining sexual and immodesty into 1 group - sex/nudity
+
+**Make sure to use the appropriate dplyr verb(s)!**
+
+**Show the 10 rows with the most occurrences. Just display the name of the movie, run_time, category, tag_name, and occurrences (the *movies2* data set should still have all 10 columns)**
+
+```{r Question 2}
+
+movies3 <- movies2 |> 
+  mutate(
+    run_time = round( run_time / 60), #convert from seconds to minutes
+    #update category names for sexual and immodesty
+    category = if_else( category == "sexual" | category == "immodesty", "sex/nudity", category)
+  )
+#start new pipe because we dont want to change movies3, just display it in this manner
+movies3 |> 
+  slice_max(
+    occurrences, #get movies with the highest occurrences
+    n = 10
+  ) |> 
+  select(
+    #show only these columns
+    name, run_time, category, tag_name, occurrences
+  )
+
+
+```
+
+**What tag do all 10 movies with the most occurrences have?**
+Profanity
+
+
+\newpage
+
+## Question 3: Combining tags in the same category
+
+**If you were unable to complete question 2, you can use the "movies q3.csv" data set for this question**
+
+**In homework 3, the data only included the category and ignored the tags. That is, if a movie had 3 "graphic" scenes and 2 scences with "gore", we want to combine those scenes together since those 2 tags are both under the "violence" category, and the movie will have 5 violent scenes.**
+
+**Using the movies2 data set, create a data frame called *movies_summary* that has the following columns:**
+
+1) **imdb_id**: The IMDB identifier of the movie
+2) **name**: the name of the movie
+3) **rating**: The MPAA rating of the movie (PG/PG-13/R)
+4) **run_time**: The length of the movie (in minutes)
+5) **category**: The type of explicit content (language, violence, sex/nudity, drugs)
+6) **occurrences**: The total number of scenes in the movie of the category type
+7) **occur_duration**: The length (in seconds) of all scenes in the movie of the type of violent content
+8) **occurred**: Either the value "yes" if there is at least 1 scene of that content type in the movie and "no" if there are 0 explicit scenes of that type in the movie
+
+**Hint: You should be creating the columns in the order specified using 3 different dplyr verbs**
+
+**Use `tibble()` to display the first 10 rows**
+
+```{r Question 3}
+#create movies_summary
+movies_summary <- movies3 |> 
+  summarise(
+    #group by these columns so they get included
+    #will not make extra groups since imdb_id, name, rating, and run_time do not vary for any given movie
+    .by = c(imdb_id, name, rating, run_time, category),
+    occurrences = sum(occurrences), #sum the occurrences of each category in all movies
+    occur_duration_sec = sum(occur_duration) * 60 #sum duration time and multiply by 60 to get in seconds
+  ) |> 
+  mutate(
+    occurred = if_else( occurrences >= 1, "yes", "no") #if occurrences is 1 or more, this category occurred
+  )
+  
+# Displaying the data frame in the knitted document
+tibble(movies_summary)
+```
+
+**Use the code chunk below to check that you did it successfully. Each movie should only occur 4 times (once for each category) and it should have 1427 rows**
+
+```{r Q3 check, include = FALSE}
+movies_summary |> 
+  count(imdb_id, name) |> 
+  arrange(-n)
+```
+
+
+\newpage
+
+## Question 4: Average number of explicit scences per movie
+
+**If you were unable to complete question 3, you can use the "movies q4.csv" data set for this question**
+
+**Using the *movies_summary* data set and the relevant dplyr verbs, create a graph that has the categories on the y-axis and the average number of occurrences per movie on the x-axis, represented by a bar. See the graph in Brightspace!**
+
+```{r Question 4}
+movies_summary |>
+  summarize(
+    .by = category, #summarize by category
+    avg_occurrences = mean(occurrences) #find the mean occurrences of each category
+  ) |> 
+  ggplot(
+    mapping = aes(
+      x = avg_occurrences, #avg occurrences on x
+      y = fct_reorder(category, avg_occurrences) #category on y sorted by avg_occurrences
+    )
+  ) +
+  geom_col(
+    color = "black", #outline
+    fill = c("darkred", "steelblue", "pink", "forestgreen") #fill colors
+  ) +
+  #add labels to axis
+  labs(
+    x = "Average Occurences per Movie",
+    y = "Explicit Type"
+  ) +
+  theme_classic() + #change theme
+  scale_x_continuous(
+    expand = c(0, 0, 0.05, 0) #get rid of spacing on x axis
+  )
+
+
+
+```
+
+
+

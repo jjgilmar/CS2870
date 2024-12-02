@@ -1,0 +1,459 @@
+---
+title: "DS 2870: Homework 7 - Multiple Linear Regression"
+author: "Joey Gilmartin"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      warning = F,
+                      mesage = F)
+
+# Load the needed packages for MLR: tidyverse, regclass, broom, GGally
+pacman::p_load(tidyverse, regclass, broom, GGally)
+# Changes the default theme to theme_bw()
+theme_set(theme_bw())
+theme_update(plot.title = element_text( hjust = .5))
+
+
+# read in the used cars.csv data set, save it as cars, 
+# and change mileage to be in thousands of miles: mileage = mileage/1000
+cars <- 
+  read.csv("used cars.csv") |> 
+  mutate(mileage = mileage/1000)
+
+```
+
+
+## Data Description:
+
+**The used cars.csv file has information about 1000 randomly sampled used sedans (4 door cars) in 2021. The variables are:**
+
+1) **manufactor**: The company that makes the car
+2) **model**: The model of the car
+3) **price**: The sale price of the used car (our response variable)
+4) **year**: The year are the car was manufactured
+5) **age**: The age of the car when it was posted
+6) **condition**: The condition of the car (like new/excellent/good)
+7) **cylinders**: The number of cylinders in the engine (4/6/8)
+8) **fuel**: Type of fuel the car takes (gas/hybrid)
+9) **mileage**: The miles driven according to the odometer (in thousands of miles)
+10) **transmission**: The type of transmission (automatic/manual)
+11) **paint_color**: The color of the car
+
+\newpage
+
+## Question 1) Exploratory data analysis
+
+### Question 1a) Scatter plots of price by year, age, cylinders and mileage
+
+**Create a set of scatterplots with price on the y-axis and the 4 numeric predictors (year, age, cylinders, mileage) on the respective x-axes.**
+
+
+```{r q1a}
+cars |> 
+  #pivot longer to get into one column
+  pivot_longer(
+    cols = c(age, cylinders, mileage, year),
+    names_to = "variable",
+    values_to = "measurement"
+  ) |> 
+  #make variable a factor
+  mutate(variable = as_factor(variable)) |> 
+  #set up gg plot
+  ggplot(
+    mapping = aes(
+      x = measurement,
+      y = price
+    )
+  ) + 
+  geom_point(
+    alpha = .5 #make points see through
+  ) +
+  geom_smooth(
+    method = "loess", #add best fit line
+    formula = y~x,
+    se = F
+  ) +
+  #add facet based on variable
+  facet_wrap(
+    facets = ~ variable,
+    scales = "free_x",
+    nrow = 2
+  ) +
+  scale_y_continuous(
+    labels = scales::label_dollar() #make labels dollars
+  )
+  
+
+```
+
+**How do each of the numeric variables appear to predict the price of the used cars (positive/negative/none, linear/curved/none, etc...)?**
+
+**year**: There is a moderate, positive, curved, correlation between year and price.
+
+
+**age**: There is a moderate, negative, curved, correlation between year and price. The correlation is the opposite of year.
+
+
+**cylinder**: It looks like there's no correlation.
+
+
+**mileage**: It seems like there is a weak, negative, curved, correlation between mileage and price.
+
+
+
+\newpage
+
+
+## Question 1b) Correlation Plot
+
+**Create a correlation plot for the same 5 variables in question 1a in the code chunk below.**
+
+```{r 1b}
+cars |> 
+  dplyr::select(where(is.numeric)) |> 
+  ggcorr(
+    low = "red3", #low neg cor = red
+    mid = "white",
+    high = "blue", #high pos cor = blue
+    label = T,
+    label_round = 2
+  )
+
+
+```
+
+**Does there appear to be a potential problem with multicollinearity? Explain your answer!**
+Yes there is a problem with multicollinearity. There is a direct negative correlation between age and year. This is because if a car is 10 years old it will have been made in 2014. It is a different way of representing the same variable. 
+
+\newpage
+
+## Question 2) Finding a good model
+
+### Part 2a) Fit four candidate models
+
+In the code chunk below, fit the following four linear models with the corresponding names and explanatory variables listed:
+
+1) `price_lm5`: age + mileage + cylinders + transmission + fuel
+
+2) `price_lm3`: age + mileage + cylinders
+
+3) `price_lm2`: age + mileage
+
+4) `price_lm1`: age 
+
+```{r q2a}
+#create linear models
+price_lm5 <- lm(
+  formula = price ~ age + mileage + cylinders + transmission + fuel,
+  data = cars
+)
+
+price_lm3 <- lm(
+  formula = price ~ age + mileage + cylinders,
+  data = cars
+)
+
+price_lm2 <- lm(
+  formula = price ~ age + mileage,
+  data = cars
+)
+
+price_lm1 <- lm(
+  formula = price ~ age,
+  data = cars
+)
+
+
+```
+
+
+**If done properly, the code chunk below should run**
+
+
+```{r q2a check, echo = F}
+bind_rows(
+  .id = "model",
+  "price_lm1" = glance(price_lm1),
+  "price_lm2" = glance(price_lm2),
+  "price_lm3" = glance(price_lm3),
+  "price_lm5" = glance(price_lm5)
+) |> 
+  dplyr::select(model, n_predictors = df, r.squared, sigma) |> 
+  mutate(r.squared = round(r.squared, 3),
+         sigma = round(sigma, 0)) |> 
+  gt::gt()
+```
+
+
+
+### Part 2b) Best model of the four options
+
+**Using the output created in 2a), which model should you use? Again, justify your answer!**
+We should use price_lm3 because it has the highest R^2 value besides price_lm5 however the difference between the two is extremely small. Additionally, price_lm5 uses 2 more predictors than price_lm3 making it a much more complicated model. The best, simplest model is price_lm3.
+
+
+## Question 3) Test Cars Data Set
+
+**The code chunk below reads in the "test cars.csv" data set that you'll use with the models fit in question 2**
+
+```{r Q3 test cars, echo = F}
+#reade in test cars and change mileage to be in 1000s
+test_cars <- 
+  read.csv("test cars.csv") |> 
+  mutate(mileage = mileage/1000)
+```
+
+
+### Part 3a) Making predictions with the models for the test data
+
+**Using the models you created in 2a), predict the price for the cars in the *test_cars* data set. You can predict the results for a new data set using the `predict()` function, which requires 2 arguments:**
+
+- `object = ` the model used to make predictions (the different `lm` objects)
+
+- `newdata = ` The data set you want to make predictions for.
+
+**Combine these predictions into a data set named *price_pred* that has 5 columns:**
+
+1) *price*: The actual price for the cars in the **test_cars** data set
+
+2) *price5*: The predicted price using the `price_lm5` model
+
+3) *price3*: The predicted price using the `price_lm3` model
+
+4) *price2*: The predicted price using the `price_lm2` model
+
+5) *price1*: The predicted price using the `price_lm1` model
+
+```{r q2b i}
+
+price_pred <- 
+  #make a data frame with a column for the price
+  data.frame( price = test_cars$price) |> 
+  #add a column for predicted price for each lm
+  mutate(
+    price5 = predict(object = price_lm5, newdata = test_cars),
+    price3 = predict(object = price_lm3, newdata = test_cars),
+    price2 = predict(object = price_lm2, newdata = test_cars),
+    price1 = predict(object = price_lm1, newdata = test_cars),
+  )
+
+
+
+# Displaying the results in the knitted document
+tibble(price_pred)
+```
+
+
+### Part 3b) Calculating the $R^2$ and MAE for the test data
+
+**Calculate the $R^2$, sigma, and mean absolute error (MAE) of the test predictions for each of the 4 models. You can either calculate them individual and put them together in a data set, or you can use `pivot_longer()` to "shorten" the code required!**
+
+**sigma is:**
+$$\textrm{sigma} = \sqrt{\frac{\sum(y - \hat{y})^2}{n}}$$
+
+**To calculate the MAE is: **
+$$\textrm{MAE} = \frac{\sum|y - \hat{y}|}{n}$$
+
+**and the absolute function in R is `abs()`**
+
+```{r q3b}
+price_pred |> 
+  #pivot longer to get a column with model
+  pivot_longer(
+    cols = c(price5:price1),
+    names_to = "model",
+    values_to = "estimate"
+  ) |>
+  #add a column for residual to make calculations easier
+  mutate(
+    resid = price - estimate
+  ) |> 
+  #get summary data based by model
+  #using formulas from above
+  summarize(
+    .by = model,
+    R2 = cor(estimate, price)^2,
+    sigma = sqrt(mean(resid^2)),
+    MAE = mean(abs(resid))
+  )
+```
+
+**Using your results from the above code code chunk, which model should you use?**
+Using these results, we should use price_lm3. This model has the highest R^2. The only model to have a similar R^2 is more complicated. 
+
+
+
+
+
+## Question 4) Interpreting the model
+
+**The model estimates for `price_lm5` are displayed in the code chunk below and you'll be using them to answer parts a) and b)**
+
+```{r Q4, echo = F}
+#get estimates using tidy
+tidy(price_lm5) |> 
+  # Rounding the results to 3 decimal places
+  transmute(
+    term = term,
+    estimate = round(estimate, 0)
+  )
+  
+```
+
+### Part 4a) Model interpretations: Mileage
+
+**Interpret the *mileage* estimate for the model**:
+
+While other variables are held constant, every 1000 mile increase in mileage, 
+there is an expected decrease in the price of that car of 41 dollars.
+
+
+### Part 4b) Model interpretations: fuel
+
+**Interpret the *fuel* estimate for the model**:
+
+While other variables are held constant, if a car is uses hybrid fuel type, 
+there is an expected increase in the price of that car of $206. 
+We expect the price of a hybrid to be $206 higher than a non-hybrid car.
+
+
+
+
+
+## Question 5) Model diagnostics
+
+**You'll be using the *cars* data set and `price_lm3` model for all parts of question 5**.
+
+### Part 5a) Overall Residual Plot
+
+**Create just the residual plot for the `price_lm3` model.**
+
+
+
+```{r q5a residual plot}
+
+#add columns of price_lm3 to the cars data
+augment_columns(
+  x = price_lm3,
+  data = cars
+) |> 
+  # create gg plot with fitted on x and residuals on y
+  ggplot(
+    mapping = aes(
+      x = .fitted,
+      y = .resid
+    )
+  ) +
+  #add points
+  geom_point() +
+  #add some labels for context
+  labs(
+    x = "Fitted Value",
+    y = "Residual",
+    title = "Resdiual Plot"
+  ) +
+  #center title
+  theme(
+    plot.title = element_text( hjust = .5)
+  ) + 
+  #add line at mean of residuals (0)
+  geom_hline(
+    mapping = aes(yintercept = mean(.resid)),
+    color = "red",
+    linewidth = 1
+  ) +
+  #add best fit line to see if there is a pattern in residuals
+  geom_smooth(
+    method = "loess",
+    se = F,
+    formula = y ~ x,
+    color = "steelblue",
+    linewidth = 1
+  )
+
+```
+
+**Using the residual plot you created, which assumptions about our linear model below appear to be violated? If they've been violated, justify your answer**
+
+**Linear Assumption**: The linear assumption in the model is violated. There is some relationship between residual and fitted value. There is a slight curve in the points on this graph which can be seen through the red and blue lines. The red line is at y = 0 (all points should be 'randomly' spaced around this line) and the blue line is the trend line (should be close to red line). There is an obvious quadratic trend in the blue line showing that the linear assumption is violated.
+
+**No outliers**: There is one outlier that sticks out in the residual plot. There is a point at about x = 8000 with a residual of almost 15,000 dollars. A residual this high indicates a prediction that is extremely low. The next highest residual is about 10,000 dollars.
+
+
+**Equal Spread (homoscedasticity)**: The assumption of homoscedasticity is violated here. This can be seen in the cone line shape of the resdiual plot. There is less variance in smaller y_hat values than the larger y_hat values. Error is not equal throughout all predictions.
+
+
+
+
+### Part 5b) Individual Residual Plots
+
+**The residual plot for the three predictors is shown below. Is there evidence of any non-linear trends? Justify your answer!**
+There is definetly a non linear trend in age. Newer and older cars have higher residuals as seen by the blue line on the graph. Cars in the middle, about 10-15 years old sell for significantly less. The trendline dips below 0 for these residuals. Since cars generally sell for more when they are younger and older than in the middle years, there appears to be some quadratic relationship between age and price.
+
+There is some non-linear trend in milage, The trend line dips below and above the line at y = 0. The line shows a similar relationship as age vs price (cars with  a high mileage and cars with low mileage sell for more than cars in the "in between" area around 75-125 thousand miles). However, this relationship is weaker than the nonlinear trend between age and price.
+
+```{r 5b, fig.height=8}
+augment_columns(
+  x = price_lm3,
+  data = cars
+) |> 
+  dplyr::select(age, cylinders, mileage, .resid) |> 
+  # Pivoting the 3 predictors into one column
+  pivot_longer(
+    cols = -.resid,
+    names_to = "predictor",
+    values_to = "value"
+  ) |> 
+  # Ordering them in the same order as the data
+  mutate(predictor = as_factor(predictor)) |> 
+  
+  # Creating the individual residual plots
+  ggplot(
+    mapping = aes(
+      x = value,
+      y = .resid
+    )
+  ) +
+  
+  geom_point(alpha = 0.25) + 
+  
+  # Adding a horizontal line at y = 0
+  geom_hline(
+    mapping = aes(yintercept = mean(.resid)),
+    color = "red",
+    linewidth = 1
+  ) +
+  
+  # Adding a blue trend line that should be very similar to the red line
+  # if there isn't a non-linear trend between x & y
+  geom_smooth(
+    method = "loess",
+    se = F,
+    formula = y ~ x,
+    color = "steelblue",
+    linewidth = 1
+  ) +
+  
+  # A residual plot for the 3 predictors
+  facet_wrap(
+    facets = vars(predictor),
+    scales = "free_x",
+    nrow = 2 #changed nrow because graphs were coming out stretched horizontally
+  ) + 
+  # Changing the labels and adding $ to the y-axis
+  labs(
+    x = NULL,
+    y = "Residuals"
+  ) + 
+  scale_y_continuous(labels = scales::label_dollar())
+```
+
+
+
+
+
+

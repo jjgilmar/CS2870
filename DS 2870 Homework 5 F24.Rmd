@@ -1,0 +1,210 @@
+---
+title: "DS 2870: Homework 5 - Strava Data"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      #warning = F,
+                      #message = F,
+                      fig.align = "center")
+
+# Load the tidyverse, ggrepel, and janitor packages here
+pacman::p_load( tidyverse, ggrepel, janitor )
+```
+
+## Reading in the data
+
+The code chunk below will create two data sets:
+
+1) **strava_full**: A data set on 149 recorded bike activities with two columns
+  a) *date*: The date of the activity. A date can appear multiple times if there were multiple activities on the same day
+  b) *distance*: The total distance of the trip in kilometers (km).
+  
+2) **by_day**: A data set with one column - Each day from the earliest date to the latest date of the **strava_full** data set.
+
+
+You'll need both data sets for the first question.
+
+```{r Read in data}
+strava_full <- 
+  read.csv("https://raw.githubusercontent.com/Shammalamala/DS-2870-Data-Sets/main/strava%20full.csv") |> 
+  janitor::clean_names() |> 
+  dplyr::select(date = activity_date,
+                distance)
+
+# Creating a data set that has a single column: 
+# The date from the first date in the data set to today's date
+by_day <- 
+  data.frame(
+    date = seq(from = as.Date("2023-06-25"), to = Sys.Date(), by = "day")
+  )
+```
+
+
+## Question 1: Total distance travelled by day in May, June, and July 2024
+
+In order to create the graph seen in Brightspace, you'll need to clean and wrangle the data first to put it into a form you can use to plot the cumulative distance per day for the months of May, June, July 2024. 
+
+A cumulative sum adds the current value with all the ones previously. If we have a vector of 
+
+$$[5, 3, 10, 2]$$
+
+The cumulative vector would be:
+
+$$[5, 5 + 3, 5 + 3 + 10, 5 + 3 + 10 + 2]$$
+
+The function to calculate the cumulative sum is `cumsum()`. You'll need to use it along with the appropriate `dplyr` verbs to get the data into the form you'll need to make the graph. 
+
+Additionally, the conversion from km to mi is 1 km = 0.621371 mi.
+
+This question is broken into two code chunks. The first one below, you'll wrangle the data and in the second chunk, you'll create the graph. Make sure to display both the data set created and the graph!
+
+For the data wrangling code chunk below, make sure to only use methods we've seen in class (`dplyr` functions, other functions in packages we may have seen so far...). This part is the hardest of this homework. Look at the graph in Brightspace and think about the columns you'll need to create it and which rows you'll want to keep.
+
+```{r Q1 data}
+strava_full2 <- strava_full |> 
+  #use seperate to break the data down into month-day, year, and time
+  separate(
+    col = date,
+    sep = ",", #seperate by commas
+    into = c("month_day", "year", "time") #into these three columns
+  ) |> 
+  mutate(
+    #get date in format using paste, and 2/3 of the columns made in seperate
+    date = as.Date(paste(year, month_day), format = "%Y %b %d"),
+  ) |> 
+  select(date, distance) #only take date and distance (drop time)
+
+tibble(strava_full2)
+
+
+mjj_2024_distance <- 
+  #left join by_day and strava_full2
+  left_join(x = by_day, 
+            y = strava_full2,
+            by = "date"
+  ) |>
+  mutate(
+    #using lubridate, get year, month (name), day columns
+    year = lubridate::year(date),
+    month = lubridate::month(date, label = T, abbr = F),
+    day = lubridate::day(date),
+    #make NA values in distance column 0
+    distance = if_else( is.na(distance), 0, distance),
+    #multiply by conversion rate to get distance in miles
+    distance_mi = distance * 0.621371
+  ) |> 
+  filter(
+    #only get May, June, July from 2024
+    year == 2024,
+    month %in% c("May", "June", "July")
+  ) |> 
+  mutate(
+    #make a new column called cumulative_distance and sum the mile distance
+    .by = month,
+    day,
+    distance_mi,
+    cumulative_distance = cumsum(distance_mi)
+  )
+
+tibble(mjj_2024_distance)
+
+#for the final graph, make a data frame with only the last day of each month
+final_mjj_2024_distance <- mjj_2024_distance |> 
+  slice_max(
+    #group by month since we want the last day of each month
+    by = month,
+    #order by date
+    order_by = date,
+    #the highest one
+    n = 1, 
+    #no ties
+    with_ties = F
+  ) |> 
+  mutate(
+    #round the cumulative distance so it looks nice on a graph
+    cumulative_distance = round(cumulative_distance)
+  )
+
+tibble(final_mjj_2024_distance)
+```
+
+
+Using the data frame created above, form the graph seen in Brightspace. Save it (any name works) and display it in the knitted document!
+
+```{r q1 graph}
+gg_distance <-
+  ggplot(
+    #give the data for May, June, July 2024
+    data = mjj_2024_distance,
+    #set up x, y, and color 
+    mapping = aes(
+      x = day,
+      y = cumulative_distance,
+      color = month
+    )
+  ) +
+  geom_line() + #add lines for each month
+  theme_bw() + #add a theme
+  theme(
+    #center title and subtitle, make caption italic
+    plot.title = element_text( hjust = .5),
+    plot.subtitle = element_text( hjust = .5),
+    plot.caption = element_text( face = "italic"),
+  )+
+  labs(
+    #add labels
+    x = "Day of the Month",
+    y = "Total Distance (mi)",
+    title = "Cumulative Distance Travelled by Bike",
+    subtitle = "May, June, July 2024",
+    caption = "Data: strava.com",
+    #get rid of legend title
+    color = NULL
+  )
+
+gg_distance
+ 
+```
+
+
+
+## Question 2: Better line graph
+
+For line graphs, it's often better to include the group at the end of the line than in a legend so the viewer of the graph doesn't have to look from the graph to the legend and back to the graph. Create the graph seen in Brightspace! 
+
+```{r q2}
+gg_distance +
+  #add some x axis spacing
+  scale_x_continuous(
+    expand = c(.05, 0, .1, 0)
+  ) +
+  #add some y axis spacing
+  scale_y_continuous(
+    expand = c(.05, 0, .1, 0)
+  ) +
+  geom_text(
+    #give the data with  the last day from each month and the cumulative distance from that day
+    data = final_mjj_2024_distance,
+    mapping = aes(
+      #using paste, create a label as seen on graph
+      label = paste0("  ", month, "\n",cumulative_distance, " mi"),
+    ),
+    #adjust size and spacing
+    size = 3.25,
+    hjust = -.25
+  ) +
+  #get rid of legend
+  theme(
+    legend.position = 'none'
+  )
+
+```
+
+
+
+
+

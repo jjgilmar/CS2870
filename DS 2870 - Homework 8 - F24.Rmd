@@ -1,0 +1,433 @@
+---
+title: "DS 2870: Homework 10 - Non-parametric Regression"
+author: "Your Name Here"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = F,
+                      message = F,
+                      fig.align = "center")
+
+# Setting the RNG version to 4.1
+RNGversion("4.1.0")
+
+# Load the needed packages: tidyverse, FNN, rpart, rpart.plot
+pacman::p_load( tidyverse, FNN, rpart, rpart.plot, skimr)
+
+# changing the default theme
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+
+
+# reading in the used cars.csv data set as the training set saved as cars
+# and changing mileage to be in thousands
+cars <- 
+  read.csv("used cars.csv") |> 
+  mutate(mileage = mileage/1000)
+
+# Reading in a testing data set named test_cars
+test_cars <- 
+  read.csv("test cars.csv") |> 
+  mutate(mileage = mileage/1000)
+```
+
+
+## Data Description:
+
+**The used cars.csv file has information about 1000 randomly sampled used sedans (4 door cars) in 2021. The variables are:**
+
+1) **manufactor**: The company that makes the car
+2) **model**: The model of the car
+3) **price**: The sale price of the used car (our response variable)
+4) **year**: The year are the car was manufactured
+5) **age**: The age of the car when it was posted
+6) **condition**: The condition of the car (like new/excellent/good)
+7) **cylinders**: The number of cylinders in the engine (4/6/8)
+8) **fuel**: Type of fuel the car takes (gas/hybrid)
+9) **mileage**: The miles driven according to the odometer (in thousands of miles)
+10) **transmission**: The type of transmission (automatic/manual)
+11) **paint_color**: The color of the car
+
+\newpage
+
+
+
+## Question 1) kNN Regression
+
+### Part 1a) condition, fuel, transmission
+
+**Briefly explain why the *condition*, *fuel*, and *transmission* variables can't be used as a predictor of price using kNN regression.**
+The condition, fuel, and transmission variables cannot be used as a predictor of price using kNN regression because they are categorical variables. kNN regression works by taking the average of the k nearest points which requires a finding the distance between points. There is no way to find a numeric distance apart between 2 categorical variables, therefore they cannot be used.
+
+
+### Part 1b) Best choice of k
+
+**Using age, cylinders, and mileage as predictors, find the best choice of $k$ to predict the price of the used cars. Report the value of $k$, rescaling method, and resulting $R^2$. Search k = 5 to k = 100. (Best to start with a smaller range of k until you get the loop to work). **
+
+
+**Display your results using a line graph showing the R2 value when normalizing the data and when standardizing the data with two lines.**
+
+
+```{r 1b best k}
+set.seed(2870)
+
+# Write your code below
+#Normalize Function:
+normalize <- function( x ){
+  norm_x <- ( (x - min(x)) / ( max(x) - min(x) ))
+  return( norm_x )
+}
+# Standardize function:
+standardize <- function( x ){
+  standard_x <- ( (x - mean(x)) / sd(x) )
+  return( standard_x )
+}
+
+# Normalizing the data
+cars_norm <- cars |> 
+  mutate(
+    across(
+      .cols = c("age","cylinders","mileage"),
+      .fns = normalize
+    )
+  )
+#cars_norm |> select(-year) |> skim()
+# Standardizing the data
+cars_stan <- cars |> 
+  mutate(
+    across(
+      .cols = c("age","cylinders","mileage"),
+      .fns = standardize
+    )
+  )
+#cars_stan |> select(-year) |> skim()
+
+# kNN Regression
+# Creating a data.frame to store the r2 values
+r2_norm_stan <- data.frame(
+  k = 5:100,
+  norm = -1,
+  stan = -1
+)
+
+# Looping through the results
+for( i in 1:nrow(r2_norm_stan) ){
+  #predicting price using LOOCV and normalized prices
+  loop_pred_norm <- 
+    knn.reg(
+      train = cars_norm |> dplyr::select(age,cylinders,mileage),
+      # if we do not give it a test vector, it does LOOCV by default
+      y = cars_norm$price,
+      k = r2_norm_stan$k[i]
+    )
+  
+  #predicting price using LOOCV and standardized prices
+  loop_pred_stan <- 
+    knn.reg(
+      train = cars_stan |> dplyr::select(age,cylinders,mileage),
+      # if we do not give it a test vector, it does LOOCV by default
+      y = cars_stan$price,
+      k = r2_norm_stan$k[i]
+    )
+
+  #save r2 values
+  r2_norm_stan[i, 'norm'] <- loop_pred_norm$R2Pred
+  r2_norm_stan[i, 'stan'] <- loop_pred_stan$R2Pred
+  
+}
+
+tibble(r2_norm_stan)
+
+#find max
+r2_norm_stan |> 
+  pivot_longer(
+    cols = - k,
+    names_to = "model",
+    values_to = "r2"
+  ) |> 
+  slice_max(
+    order_by = r2
+  )
+
+
+# R2 plot
+r2_norm_stan |> 
+  #pivot so all R2 are in 1 col
+  pivot_longer(
+    cols = - k,
+    names_to = "model",
+    values_to = "r2"
+  ) |> 
+  ggplot(
+    mapping = aes(
+      x = k,    #k on x axis
+      y = r2,   #r2 on y
+      color = model #change color based on norm or stan data
+    )
+  ) + geom_line() + #add the lines
+  #adjust labels to give context
+  labs(
+    x = "Number of Observations Used to Make Prediction(k)",
+    y = "R^2 Value",
+    title = "R2 Value of Predicting Car Price Using kNN",
+    color = "Model Type"
+  )
+
+
+```
+
+
+
+**The best choice of k is** 27 **when rescaling the data by** standardization **with an $R^2$ value of** .6339303.
+
+\newpage
+
+### Part 1c) Predicting the Price for the test cars.
+
+**Regardless of your answer in the previous question, predict the price for the 200 cars in the *test_cars* data set when standardizing the data with k = 30. Display the results using an R-squared plot. Make sure to standardize the test_cars data set before predicting the price!**
+
+
+```{r q1c prediction}
+#standardized test cars data
+test_cars_stan <- test_cars |> 
+  mutate(
+    across(
+      .cols = c("age","cylinders","mileage"),
+      .fns = standardize
+    )
+  )
+#test_cars_stan |> select(age,cylinders,mileage) |> skim()
+
+#use knn.reg and store the results
+test_cars_knn <- knn.reg(
+  train = cars_stan |> select(age,cylinders,mileage), #train on cars
+  test = test_cars_stan |> select(age,cylinders,mileage), #test on test cars
+  y = cars_stan$price,
+  k = 30,
+)
+
+# put the actual and predicted prices in a df, find residuals
+test_cars_knn_df <- 
+  tibble(
+    y = test_cars_stan$price,
+    y_hat = test_cars_knn$pred,
+    residuals = y - y_hat
+  ) 
+
+#using the residuals, find the summary statistics
+test_cars_knn_df_summary <- test_cars_knn_df |> 
+  summarize(
+    SSE = sum(residuals^2),
+    SST = sum( (y - mean(y))^2 ),
+    R2 = sum( 1 - SSE/SST ),
+    rmse =  sqrt( SSE / (length(residuals) - 1) ),
+    MAE = residuals |> abs() |> mean()
+  )
+test_cars_knn_df_summary #show df
+
+
+#create plot
+test_cars_knn_df |> 
+  #set up axis
+  ggplot(
+    mapping = aes(
+      x = y_hat,
+      y = y
+    )
+  ) + 
+  #add points
+  geom_point( size = .75 ) +
+  #labels
+  labs(
+    x = "Predicted Price",
+    y = "Actual Price",
+    title = "Predicted vs Actual Price for 200 Used Cars"
+  ) + 
+  #label axis values with $
+  scale_y_continuous(
+        labels = scales::label_dollar()
+  ) + 
+    scale_x_continuous(
+        labels = scales::label_dollar()
+  ) + 
+  #adding best fit line
+  geom_smooth(
+    method = "lm", #linear line
+    formula = y~x,
+    se = F,
+    color = "red"
+  ) + 
+  #add text
+  annotate(
+    "text",
+    x = 7500,
+    y = 22500,
+    label = paste("R-squared: ", round(test_cars_knn_df_summary$R2, 3)), #getting r2 value
+    color = 'red'
+  )
+```
+
+**Is kNN accurate for the 200 used cars?**
+kNN is not very accurate for the 200 used cars. There is an R^2 value of .566. Additionally the MAE indicates that on average, the method is creating a prediction 2191 dollars away from the true value.
+
+\newpage
+
+
+### Part 1d) The effect of mileage on price
+
+**Using the results of kNN, can you interpret the effect of *mileage* on the price of a used car? If yes, interpret the results. If not, briefly explain why.**
+No, we cannot interpret the effect of mileage on price because kNN is a Lazy Learner and does not create a model or simplify the data in any way. We are unable to examine the individual effects of predictors since there is no simplification of the data.
+
+
+
+\newpage
+
+## Question 2) Regression trees
+
+```{r q2, echo = F, include = F}
+# To make the tree a little more readable, we'll convert price to 1000s
+cars <- 
+  cars |> 
+  mutate(price = price/1000)
+```
+
+
+### Part 2a) Fitting the full tree
+
+**Create the full regression tree predicting price using age, cylinders, fuel, mileage, and transmission. Display the last 10 rows of the CP table**
+
+
+```{r q2a full tree}
+# Leave this at the top
+set.seed(2870)
+#make the tree
+cars_full <- rpart(
+  formula = price ~ age + cylinders + fuel + mileage + transmission, #eq
+  data = cars,
+  method = 'anova',
+  minsplit = 2,
+  minbucket = 1,
+  cp = 0
+)
+
+#show the last 10 results of the cp table
+cars_full$cp |> data.frame() |> tail(10)
+
+```
+
+\newpage
+
+### Part 2b) Finding the pruning point
+
+**Find the cp value to prune the tree. Don't round the actual results, but you can round to 4 decimal places when typing your answer. Save the cp value to prune the tree as cp_prune and your answer will automatically appear in the knitted document**
+
+```{r 2b cp to prune}
+
+#get xcutoff
+xcutoff <- cars_full$cp |> data.frame() |> 
+  #first get min xerror
+  slice_min(
+    order_by = xerror,
+    n = 1,
+    with_ties = F
+  ) |> 
+  #add stf
+  mutate(
+    xcutoff = xerror + xstd
+  )|> 
+  #pull value
+  pull( xcutoff )
+#print it
+xcutoff
+
+#pull cp from and save as cp_prune
+cp_prune <- cars_full$cp |> data.frame() |>
+  filter(xerror < xcutoff) |> 
+  slice(1) |> 
+  pull(CP)
+
+```
+
+**The cp value is**: `r round(cp_prune, 4)`
+
+
+\newpage
+
+
+### Part 2c) Pruning and plotting the tree
+
+**Using your answer from the previous question, prune the tree, then use `rpart.plot()` to display the tree.**
+
+```{r 2c}
+#prune the tree based on the cp value
+cars_pruned <- prune(
+    tree = cars_full,
+    cp = cp_prune
+    )
+#plot it using rpart.plot
+rpart.plot(cars_pruned, 
+           type = 5,
+           digits = 3)
+
+```
+
+
+\newpage
+
+### Part 2d) Variable Importance
+
+**Using the pruned tree, which three variables are the most important in predicting the price of a used car?**
+
+```{r q2d variable importance}
+
+caret::varImp(cars_pruned) |> 
+  arrange(desc(Overall))
+
+```
+Mileage, cylinders, and age are the three most important variables in predicting the price of a used car.
+
+
+\newpage
+
+### Part 2e) Predicting the Price for the test cars data set 
+
+**Using both the full tree and the pruned tree separately, predict the price for the 200 used cars in the *test_cars* data set. Calculate the $R^2$ value for both the full tree and pruned tree.**
+
+
+```{r q2e prediction}
+# Predicting the price for the test cars data w full tree
+pred_cars_full <- predict(
+  object = cars_full,
+  newdata = test_cars
+)
+
+#preciting the price for the test cars data w pruned tree
+pred_cars_pruned <- predict(
+  object = cars_pruned,
+  newdata = test_cars
+)
+
+#get R2 values from each tree
+test_cars |> 
+  #make new columns
+  mutate(pred_cars_full = pred_cars_full,
+         pred_cars_pruned = pred_cars_pruned) |> 
+  summarize(
+    #get cor between y and y_hat
+    "R2_full" = cor(pred_cars_full, price)^2,
+    "R2_pruned" = cor(pred_cars_pruned, price)^2
+  )
+
+```
+
+**Which model is more accurate for the test cars? Briefly explain why the outcome (full vs pruned) is not surprising.**
+
+The pruned model is more accurate. This makes sense because the full tree is fully grown leaving 1 observation in each leaf node. This will be too specific for most data sets of used cars and not generalize the data enough, causing it to be inaccurate for most cars.
+
+
+
+
+
